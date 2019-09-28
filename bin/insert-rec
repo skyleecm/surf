@@ -1,0 +1,9 @@
+#!/bin/sh
+# insert-rec line file
+#   - line is inserted at beginning of file, any existing lines equal to the inserted is removed.
+if [ "$#" -eq 2 ]; then
+    { echo "$1" ; grep -v -x "$1" "$2" ; } > "$2.new"
+    rm "$2" && mv "$2.new" "$2"
+else
+    exit 1
+fi

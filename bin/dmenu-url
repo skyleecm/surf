@@ -1,0 +1,57 @@
+#!/bin/sh
+# save/list recent user entered url via dmenu
+#  surf send current url as input
+#   and -p Go: or Find: in cmdline
+#  
+[ -f ~/.surf/config ] && . ~/.surf/config
+
+while getopts ":p:w:" opt; do
+    case $opt in
+      p)
+        DMOPT=${OPTARG%:}
+        if [ "$DMOPT" = "Go" ]; then
+            recentFile="${recent_dir:-$HOME/.local/share}/recent_url"
+        else
+            recentFile="${recent_dir:-$HOME/.local/share}/recent_sfind"
+        fi
+        ;;
+      \?)
+        #echo "ignore option: -$OPTARG"
+        /usr/bin/dmenu "$@" 
+        exit
+        ;;
+      :)
+        echo "option: -$OPTARG requires argument"
+        exit 1 
+        ;;
+    esac
+done
+
+last=""
+while read -r line || [ -n "$line" ] ;
+do
+   last="$line"
+done
+if [ -n "$last" ]; then
+    last=${last#http*://}
+fi
+
+if [ ! -f "$recentFile" ]; then
+    touch "$recentFile"
+fi
+
+sel=$(echo "$last" | cat - "$recentFile" | rofi -dmenu -p "$DMOPT")
+if [ "$sel" != "" ]; then
+    insert-rec "$sel" "$recentFile"
+    # search if not url
+    if [ "$DMOPT" = "Go" ] && [ "$search_q" != "" ] && [ "$sel" = "${sel#/}" ]; then
+        if [ "$sel" = "${sel#http*://}" ] && [ "$sel" = "${sel#localhost}" ]; then
+            echo "$sel" | cut -d '/' -f 1 | grep -q -P "(?=^.{4,253}$)(^(?:[a-zA-Z0-9](?:(?:[a-zA-Z0-9\-]){0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$)"
+            if [ $? -gt 0 ]; then
+                sel="$search_q$sel"
+            fi
+        fi
+    fi
+fi
+echo "$sel"
+

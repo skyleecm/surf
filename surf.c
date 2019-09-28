@@ -244,6 +244,7 @@ static Atom atoms[AtomLast];
 static Window embed;
 static int showxid;
 static int cookiepolicy;
+static gfloat defzoomlevel = 1.0;
 static Display *dpy;
 static Client *clients;
 static GdkDevice *gdkkb;
@@ -982,6 +983,7 @@ newwindow(Client *c, const Arg *a, int noembed)
 {
 	int i = 0;
 	char tmp[64];
+	char tmpz[16];
 	const char *cmd[29], *uri;
 	const Arg arg = { .v = cmd };
 
@@ -1023,7 +1025,12 @@ newwindow(Client *c, const Arg *a, int noembed)
 	if (showxid)
 		cmd[i++] = "-w";
 	cmd[i++] = curconfig[Certificate].val.i ? "-X" : "-x" ;
-	/* do not keep zoom level */
+	/* use default zoom level */
+	if (defzoomlevel != 1.0) {
+		cmd[i++] = "-z";
+		snprintf(tmpz, LENGTH(tmpz), "%.2f", defzoomlevel); 
+		cmd[i++] = tmpz;
+	}
 	cmd[i++] = "--";
 	if ((uri = a->v))
 		cmd[i++] = uri;
@@ -2102,7 +2109,7 @@ main(int argc, char *argv[])
 		defconfig[Certificate].prio = 2;
 		break;
 	case 'z':
-		defconfig[ZoomLevel].val.f = strtof(EARGF(usage()), NULL);
+		defconfig[ZoomLevel].val.f = defzoomlevel = strtof(EARGF(usage()), NULL);
 		defconfig[ZoomLevel].prio = 2;
 		break;
 	default:
