@@ -50,7 +50,7 @@ distclean: clean
 dist: distclean
 	mkdir -p surf-$(VERSION)
 	cp -R LICENSE Makefile config.mk config.def.h README \
-	    surf-open.sh arg.h TODO.md surf.png \
+	    surf-open.sh arg.h TODO.md surf.png bin \
 	    surf.1 $(SRC) $(WEBEXTSRC) surf-$(VERSION)
 	tar -cf surf-$(VERSION).tar surf-$(VERSION)
 	gzip surf-$(VERSION).tar
@@ -60,6 +60,7 @@ install: all
 	mkdir -p $(DESTDIR)$(PREFIX)/bin
 	cp -f surf $(DESTDIR)$(PREFIX)/bin
 	chmod 755 $(DESTDIR)$(PREFIX)/bin/surf
+	cp -f bin/* $(DESTDIR)$(PREFIX)/bin
 	mkdir -p $(DESTDIR)$(LIBDIR)
 	cp -f libsurf-webext.so $(DESTDIR)$(LIBDIR)
 	chmod 644 $(DESTDIR)$(LIBDIR)/libsurf-webext.so
@@ -69,6 +70,7 @@ install: all
 
 uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/bin/surf
+	for util in bin/* ; do rm -f $(DESTDIR)$(PREFIX)/$$util; done
 	rm -f $(DESTDIR)$(MANPREFIX)/man1/surf.1
 	rm -f $(DESTDIR)$(LIBDIR)/libsurf-webext.so
 	- rmdir $(DESTDIR)$(LIBDIR)

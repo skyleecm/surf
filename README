@@ -6,7 +6,7 @@ Requirements
 ------------
 In order to build surf you need GTK+ and Webkit/GTK+ header files.
 
-In order to use the functionality of the url-bar, also install dmenu[0].
+In order to use the functionality of the url-bar, also install rofi[0]. (a dmenu replacement)
 
 Installation
 ------------
@@ -35,6 +35,6 @@ which is run like this:
 Further invocations of the script will run surf with the specified URI in this
 instance of tabbed.
 
-[0] http://tools.suckless.org/dmenu
+[0] https://github.com/davatorium/rofi
 [1] http://tools.suckless.org/tabbed
 
