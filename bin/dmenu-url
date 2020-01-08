@@ -2,7 +2,8 @@
 # save/list recent user entered url via dmenu
 #  surf send current url as input
 #   and -p Go: or Find: in cmdline
-#  
+#   and -w wid (windowid)
+#
 [ -f ~/.surf/config ] && . ~/.surf/config
 
 while getopts ":p:w:" opt; do
@@ -13,6 +14,14 @@ while getopts ":p:w:" opt; do
             recentFile="${recent_dir:-$HOME/.local/share}/recent_url"
         else
             recentFile="${recent_dir:-$HOME/.local/share}/recent_sfind"
+        fi
+        ;;
+      w)
+        wid=$OPTARG
+        # clsname is surf filename; running sym link can use different recentFile
+        clsname=$(xprop -id $wid WM_CLASS | cut -d '=' -f 2 | cut -d ',' -f 1 | xargs)
+        if [ "$clsname" != "surf" ]; then
+            recentFile="${recentFile}.$clsname"
         fi
         ;;
       \?)
