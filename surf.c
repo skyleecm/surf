@@ -1264,10 +1264,10 @@ createview(WebKitWebView *v, WebKitNavigationAction *a, Client *c)
 	case WEBKIT_NAVIGATION_TYPE_OTHER: /* fallthrough */
 		/*
 		 * popup windows of type “other” are almost always triggered
-		 * by user gesture, so inverse the logic here
+		 * by user gesture, changed to allow 
 		 */
 /* instead of this, compare destination uri to mouse-over uri for validating window */
-		if (webkit_navigation_action_is_user_gesture(a))
+		if (!webkit_navigation_action_is_user_gesture(a))
 			return NULL;
 	case WEBKIT_NAVIGATION_TYPE_LINK_CLICKED: /* fallthrough */
 	case WEBKIT_NAVIGATION_TYPE_FORM_SUBMITTED: /* fallthrough */
