@@ -105,10 +105,88 @@ readpipe(GIOChannel *s, GIOCondition c, gpointer unused)
 	return TRUE;
 }
 
+// allow urireq if same main domain
+gboolean
+checkdomain(const char *domain,  const gchar *urireq)
+{
+	char dom[256];
+	char reqdom[256];
+	gchar *ur = strchr(urireq, ':');
+	sscanf(ur, "://%[^/]", reqdom);
+	char *d = strrchr(domain, '.');
+	char *rd = strrchr(reqdom, '.');
+	if ((d == NULL) || (rd == NULL))
+		return FALSE;
+	if (strcmp(d, rd) != 0)
+		return FALSE;
+	int len = strlen(domain) - strlen(d);
+	strncpy(dom, domain, len);
+	dom[len] = 0;
+	*rd = 0;
+	d = strrchr(dom, '.');
+	rd = strrchr(reqdom, '.');
+	if (d != NULL)
+		d = d + 1;
+	else
+		d = dom;
+	if (rd != NULL)
+		rd = rd + 1;
+	else
+		rd = reqdom;
+	return (strcmp(d, rd) == 0);
+}
+
+// true if page has iframe src not from the same main domain
+//  skip the first iframe, otherwise lot of sites may not work, eg google login
+gboolean
+hasiframe(WebKitWebPage *wp, const char *domain)
+{
+	WebKitDOMDocument *dom = webkit_web_page_get_dom_document(wp);
+	WebKitDOMNodeList *list = webkit_dom_document_get_elements_by_tag_name(dom, "iframe");
+	gulong len = webkit_dom_node_list_get_length(list);
+	if (len <= 1)
+		return FALSE;
+	int i = 0;
+	for (i = 1; i < len; i++)
+	{
+		WebKitDOMNode *elem = webkit_dom_node_list_item(list, i);
+		const gchar *src = webkit_dom_html_iframe_element_get_src(WEBKIT_DOM_HTML_IFRAME_ELEMENT(elem));
+		if ((src != NULL) && !checkdomain(domain, src))
+			return TRUE;
+	}
+	return FALSE;
+}
+
+gboolean
+sendrequest(WebKitWebPage     *web_page,
+               WebKitURIRequest  *request,
+               WebKitURIResponse *redirected_response,
+               gpointer           user_data)
+{
+	const gchar *uri = webkit_web_page_get_uri(web_page);
+	const gchar *urireq = webkit_uri_request_get_uri(request);
+	if ((strcmp(uri, urireq) == 0) || (strncmp(urireq, "data:", 5) == 0))
+		return FALSE;
+	if (redirected_response != NULL)
+	{
+		if ((webkit_uri_response_get_status_code(redirected_response) == 302) && 
+			(strcmp(uri, webkit_uri_response_get_uri(redirected_response)) == 0))
+			return FALSE;
+	}
+	char dom[256];
+	gchar *u = strchr(uri, ':');
+	sscanf(u, "://%[^/]", dom);
+	if (!hasiframe(web_page, dom))
+		return FALSE;
+	// suppress request if not from same source, and hasiframe is true
+	return !checkdomain(dom, urireq);
+}
+
 static void
 webpagecreated(WebKitWebExtension *e, WebKitWebPage *wp, gpointer unused)
 {
 	Page *p = newpage(wp);
+	g_signal_connect(wp, "send-request", G_CALLBACK(sendrequest), NULL);
 }
 
 G_MODULE_EXPORT void
