@@ -6,7 +6,9 @@
 #
 [ -f ~/.surf/config ] && . ~/.surf/config
 
-while getopts ":p:w:" opt; do
+last=""
+
+while getopts ":p:w:u:" opt; do
     case $opt in
       p)
         DMOPT=${OPTARG%:}
@@ -24,6 +26,9 @@ while getopts ":p:w:" opt; do
             recentFile="${recentFile}.$clsname"
         fi
         ;;
+      u)
+        last=$OPTARG
+        ;;
       \?)
         #echo "ignore option: -$OPTARG"
         /usr/bin/dmenu "$@" 
@@ -36,11 +41,12 @@ while getopts ":p:w:" opt; do
     esac
 done
 
-last=""
-while read -r line || [ -n "$line" ] ;
-do
-   last="$line"
-done
+if [ ! -n "$last" ]; then
+    while read -r line || [ -n "$line" ] ;
+    do
+        last="$line"
+    done
+fi
 if [ -n "$last" ]; then
     last=${last#http*://}
 fi
@@ -62,5 +68,5 @@ if [ "$sel" != "" ]; then
         fi
     fi
 fi
-echo "$sel"
+echo -n "$sel"
 

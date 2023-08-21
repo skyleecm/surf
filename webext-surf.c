@@ -1,6 +1,9 @@
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <limits.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 #include <gio/gio.h>
@@ -12,97 +15,108 @@
 
 #define LENGTH(x)   (sizeof(x) / sizeof(x[0]))
 
-typedef struct Page {
-	guint64 id;
-	WebKitWebPage *webpage;
-	struct Page *next;
-} Page;
-
-static int pipein, pipeout;
-static Page *pages;
-
-Page *
-newpage(WebKitWebPage *page)
-{
-	Page *p;
-
-	if (!(p = calloc(1, sizeof(Page))))
-		die("Cannot malloc!\n");
-
-	p->next = pages;
-	pages = p;
-
-	p->id = webkit_web_page_get_id(page);
-	p->webpage = page;
-
-	return p;
-}
+static WebKitWebExtension *webext;
+static int sock;
 
 static void
-msgsurf(Page *p, const char *s)
+msgsurf(guint64 pageid, const char *s)
 {
 	static char msg[MSGBUFSZ];
 	size_t sln = strlen(s);
 	int ret;
 
-	if ((ret = snprintf(msg, sizeof(msg), "%c%c%s",
-	                    2 + sln, p ? p->id : 0, s))
+	if ((ret = snprintf(msg, sizeof(msg), "%c%s", pageid, s))
 	    >= sizeof(msg)) {
-		fprintf(stderr, "webext: message too long: %d\n", ret);
+		fprintf(stderr, "webext: msg: message too long: %d\n", ret);
 		return;
 	}
 
-	if (pipeout && write(pipeout, msg, sizeof(msg)) < 0)
-		fprintf(stderr, "webext: error sending: %.*s\n", ret-2, msg+2);
+	if (send(sock, msg, ret, 0) < 0)
+		fprintf(stderr, "webext: error sending: %s\n", msg+1);
 }
 
 static gboolean
-readpipe(GIOChannel *s, GIOCondition c, gpointer unused)
+readsock(GIOChannel *s, GIOCondition c, gpointer unused)
 {
-	static char msg[MSGBUFSZ], msgsz;
-	WebKitDOMDOMWindow *view;
+	static char js[48], msg[MSGBUFSZ];
+	WebKitWebPage *page;
+	JSCContext *jsc;
 	GError *gerr = NULL;
-	glong wh, ww;
-	Page *p;
+	gsize msgsz;
 
-	if (g_io_channel_read_chars(s, msg, LENGTH(msg), NULL, &gerr) !=
+	if (g_io_channel_read_chars(s, msg, sizeof(msg), &msgsz, &gerr) !=
 	    G_IO_STATUS_NORMAL) {
-		fprintf(stderr, "webext: error reading pipe: %s\n",
-		        gerr->message);
-		g_error_free(gerr);
-		return TRUE;
-	}
-	if ((msgsz = msg[0]) < 3) {
-		fprintf(stderr, "webext: message too short: %d\n", msgsz);
+		if (gerr) {
+			fprintf(stderr, "webext: error reading socket: %s\n",
+			        gerr->message);
+			g_error_free(gerr);
+		}
 		return TRUE;
 	}
 
-	for (p = pages; p; p = p->next) {
-		if (p->id == msg[1])
-			break;
+	if (msgsz < 2) {
+		fprintf(stderr, "webext: readsock: message too short: %d\n",
+		        msgsz);
+		return TRUE;
 	}
-	if (!p || !(view = webkit_dom_document_get_default_view(
-	            webkit_web_page_get_dom_document(p->webpage))))
+
+	if (!(page = webkit_web_extension_get_page(webext, msg[0])))
 		return TRUE;
 
-	switch (msg[2]) {
+	jsc = webkit_frame_get_js_context(webkit_web_page_get_main_frame(page));
+
+	switch (msg[1]) {
 	case 'h':
-		if (msgsz != 4)
+		if (msgsz != 3)
 			return TRUE;
-		ww = webkit_dom_dom_window_get_inner_width(view);
-		webkit_dom_dom_window_scroll_by(view,
-		                                (ww / 100) * msg[3], 0);
+		snprintf(js, sizeof(js),
+		         "window.scrollBy(window.innerWidth/100*%d,0);",
+		         msg[2]);
+		jsc_context_evaluate(jsc, js, -1);
 		break;
 	case 'v':
-		if (msgsz != 4)
+		if (msgsz != 3)
 			return TRUE;
-		wh = webkit_dom_dom_window_get_inner_height(view);
-		webkit_dom_dom_window_scroll_by(view,
-		                                0, (wh / 100) * msg[3]);
+		snprintf(js, sizeof(js),
+		         "window.scrollBy(0,window.innerHeight/100*%d);",
+		         msg[2]);
+		jsc_context_evaluate(jsc, js, -1);
 		break;
 	}
 
 	return TRUE;
+}
+
+static void
+pageusermessagereply(GObject *o, GAsyncResult *r, gpointer page)
+{
+	WebKitUserMessage *m;
+	GUnixFDList *gfd;
+	GIOChannel *gchansock;
+	const char *name;
+	int nfd;
+
+	m = webkit_web_page_send_message_to_view_finish(page, r, NULL);
+	name = webkit_user_message_get_name(m);
+	if (strcmp(name, "surf-pipe") != 0) {
+		fprintf(stderr, "webext-surf: Unknown User Reply: %s\n", name);
+		return;
+	}
+
+	gfd = webkit_user_message_get_fd_list(m);
+	if ((nfd = g_unix_fd_list_get_length(gfd)) != 1) {
+		fprintf(stderr, "webext-surf: Too many file-descriptors: %d\n", nfd);
+		return;
+	}
+
+	sock = g_unix_fd_list_get(gfd, 0, NULL);
+
+	gchansock = g_io_channel_unix_new(sock);
+	g_io_channel_set_encoding(gchansock, NULL, NULL);
+	g_io_channel_set_flags(gchansock, g_io_channel_get_flags(gchansock)
+	                       | G_IO_FLAG_NONBLOCK, NULL);
+	g_io_channel_set_close_on_unref(gchansock, TRUE);
+	g_io_add_watch(gchansock, G_IO_IN, readsock, NULL);
 }
 
 // allow urireq if same main domain
@@ -182,25 +196,21 @@ sendrequest(WebKitWebPage     *web_page,
 	return !checkdomain(dom, urireq);
 }
 
-static void
-webpagecreated(WebKitWebExtension *e, WebKitWebPage *wp, gpointer unused)
+void
+pagecreated(WebKitWebExtension *e, WebKitWebPage *p, gpointer unused)
 {
-	Page *p = newpage(wp);
-	g_signal_connect(wp, "send-request", G_CALLBACK(sendrequest), NULL);
+	WebKitUserMessage *msg;
+
+	msg = webkit_user_message_new("page-created", NULL);
+	webkit_web_page_send_message_to_view(p, msg, NULL, pageusermessagereply, p);
+	g_signal_connect(p, "send-request", G_CALLBACK(sendrequest), NULL);
 }
 
 G_MODULE_EXPORT void
-webkit_web_extension_initialize_with_user_data(WebKitWebExtension *e, GVariant *gv)
+webkit_web_extension_initialize(WebKitWebExtension *e)
 {
-	GIOChannel *gchanpipe;
+	webext = e;
 
-	g_signal_connect(e, "page-created", G_CALLBACK(webpagecreated), NULL);
-
-	g_variant_get(gv, "(ii)", &pipein, &pipeout);
-	msgsurf(NULL, "i");
-
-	gchanpipe = g_io_channel_unix_new(pipein);
-	g_io_channel_set_encoding(gchanpipe, NULL, NULL);
-	g_io_channel_set_close_on_unref(gchanpipe, TRUE);
-	g_io_add_watch(gchanpipe, G_IO_IN, readpipe, NULL);
+	g_signal_connect(G_OBJECT(e), "page-created",
+	                 G_CALLBACK(pagecreated), NULL);
 }
