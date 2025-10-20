@@ -177,6 +177,7 @@ static void updatewinid(Client *c);
 static void handleplumb(Client *c, const char *uri);
 static void newwindow(Client *c, const Arg *a, int noembed);
 static void spawn(Client *c, const Arg *a);
+static void spawnread(Client *c, const Arg *a);
 static void msgext(Client *c, char type, const Arg *a);
 static void destroyclient(Client *c);
 static void cleanup(void);
@@ -237,6 +238,7 @@ static void togglefullscreen(Client *c, const Arg *a);
 static void togglecookiepolicy(Client *c, const Arg *a);
 static void toggleinspector(Client *c, const Arg *a);
 static void find(Client *c, const Arg *a);
+static void findtext(Client *c, const Arg *a);
 
 /* Buttons */
 static void clicknavigate(Client *c, const Arg *a, WebKitHitTestResult *h);
@@ -259,6 +261,7 @@ static const char *useragent;
 static Parameter *curconfig;
 static int modparams[ParameterLast];
 static int spair[2];
+static gboolean isX11Display;
 char *argv0;
 
 static ParamName loadtransient[] = {
@@ -349,6 +352,7 @@ setup(void)
 	gtk_init(NULL, NULL);
 
 	gdpy = gdk_display_get_default();
+	isX11Display = GDK_IS_X11_DISPLAY(gdpy);
 
 	curconfig = defconfig;
 
@@ -613,6 +617,8 @@ geturi(Client *c)
 void
 setatom(Client *c, int a, const char *v)
 {
+	if (!isX11Display)
+		return;
 	XChangeProperty(dpy, c->xid,
 	                atoms[a], atoms[AtomUTF8], 8, PropModeReplace,
 	                (unsigned char *)v, strlen(v) + 1);
@@ -1071,6 +1077,35 @@ spawn(Client *c, const Arg *a)
 }
 
 void
+spawnread(Client *c, const Arg *a)
+{
+	const char *act, *cmd;
+	static char buf[BUFSIZ];
+	FILE *p;
+	Arg arg;
+	int useurl = 0;
+	act = ((char **)a->v)[0];
+	cmd = ((char **)a->v)[1];
+	if (g_strcmp0(act, PROMPT_GO) == 0) {
+		useurl = 1;
+		strcpy(buf, cmd);
+		strcat(buf, geturi(c));
+		if ((p = popen(buf, "r")) == NULL)
+			return;
+		memset(buf, 0, BUFSIZ);
+	}
+	else if ((p = popen(cmd, "r")) == NULL)
+		return;
+	fgets(buf, sizeof(buf), p);
+	pclose(p);
+	arg.v = buf;
+	if (useurl == 1)
+		loaduri(c, &arg);
+	else
+		findtext(c, &arg);
+}
+
+void
 destroyclient(Client *c)
 {
 	Client *p;
@@ -1301,7 +1336,7 @@ processx(GdkXEvent *e, GdkEvent *event, gpointer d)
 		ev = &((XEvent *)e)->xproperty;
 		if (ev->state == PropertyNewValue) {
 			if (ev->atom == atoms[AtomFind]) {
-				find(c, NULL);
+				findtext(c, NULL);
 
 				return GDK_FILTER_REMOVE;
 			} else if (ev->atom == atoms[AtomGo]) {
@@ -1372,7 +1407,9 @@ showview(WebKitWebView *v, Client *c)
 	gtk_widget_grab_focus(GTK_WIDGET(c->view));
 
 	gwin = gtk_widget_get_window(GTK_WIDGET(c->win));
-	c->xid = gdk_x11_window_get_xid(gwin);
+	if (isX11Display)
+		c->xid = gdk_x11_window_get_xid(gwin);
+
 	updatewinid(c);
 	if (showxid) {
 		gdk_display_sync(gtk_widget_get_display(c->win));
@@ -1948,15 +1985,23 @@ toggleinspector(Client *c, const Arg *a)
 void
 find(Client *c, const Arg *a)
 {
-	const char *s, *f;
-
 	if (a && a->i) {
 		if (a->i > 0)
 			webkit_find_controller_search_next(c->finder);
 		else
 			webkit_find_controller_search_previous(c->finder);
-	} else {
-		s = getatom(c, AtomFind);
+	}
+}
+
+void
+findtext(Client *c, const Arg *a)
+{
+	const char *s, *f;
+
+		if (a && a->v)
+			s = a->v;
+		else
+			s = getatom(c, AtomFind);
 		f = webkit_find_controller_get_search_text(c->finder);
 
 		if (g_strcmp0(f, s) == 0) /* reset search */
@@ -1968,7 +2013,6 @@ find(Client *c, const Arg *a)
 
 		if (strcmp(s, "") == 0)
 			webkit_find_controller_search_finish(c->finder);
-	}
 }
 
 void
