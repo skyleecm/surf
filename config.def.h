@@ -76,6 +76,13 @@ static WebKitFindOptions findopts = WEBKIT_FIND_OPTIONS_CASE_INSENSITIVE |
         } \
 }
 
+/* SETPRUN(prompt, opt)*/
+#define SETPRUN(p, o) { \
+        .v = (const char *[]){ p, \
+             "echo '' | dmenu-url -p '"p"' "o" ", NULL \
+        } \
+}
+
 /* DOWNLOAD(URI, referer) */
 #define DOWNLOAD(u, r) { \
         .v = (const char *[]){ "st", "-e", "/bin/sh", "-c",\
@@ -133,7 +140,9 @@ static Key keys[] = {
 	/* modifier              keyval          function    arg */
 	{ MODKEY,                GDK_KEY_g,      spawn,      SETPROP("_SURF_URI", "_SURF_GO", PROMPT_GO) },
 	{ MODKEY,                GDK_KEY_f,      spawn,      SETPROP("_SURF_FIND", "_SURF_FIND", PROMPT_FIND) },
-	{ MODKEY,                GDK_KEY_slash,  spawn,      SETPROP("_SURF_FIND", "_SURF_FIND", PROMPT_FIND) },
+	//{ MODKEY,                GDK_KEY_slash,  spawn,      SETPROP("_SURF_FIND", "_SURF_FIND", PROMPT_FIND) },
+	{ MODKEY,                GDK_KEY_9,      spawnread,  SETPRUN(PROMPT_GO, "-u") },
+	{ MODKEY,                GDK_KEY_slash,  spawnread,  SETPRUN(PROMPT_FIND, "") },
 
 	{ 0,                     GDK_KEY_Escape, stop,       { 0 } },
 	{ MODKEY,                GDK_KEY_c,      stop,       { 0 } },
