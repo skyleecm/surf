@@ -51,6 +51,13 @@ if [ -n "$last" ]; then
     last=${last#http*://}
 fi
 
+if [ ! -n "$clsname" ]; then
+    ppid=$(ps -q $PPID -o ppid=)
+    caller=$(ps -q $ppid -o comm=)
+    if [ -n "$caller" ] && [ "$caller" != "surf" ]; then
+        recentFile="${recentFile}.$caller"
+    fi
+fi
 if [ ! -f "$recentFile" ]; then
     touch "$recentFile"
 fi
