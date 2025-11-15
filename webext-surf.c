@@ -19,6 +19,8 @@
 static WebKitWebExtension *webext;
 static int sock;
 
+static void printheaders(WebKitURIRequest  *request);
+
 /*
  * Return:
  * 0 No data processed: need more data
@@ -215,6 +217,7 @@ sendrequest(WebKitWebPage     *web_page,
 			(strcmp(uri, webkit_uri_response_get_uri(redirected_response)) == 0))
 			return FALSE;
 	}
+	printheaders(request);
 	char dom[256];
 	gchar *u = strchr(uri, ':');
 	sscanf(u, "://%[^/]", dom);
@@ -222,6 +225,19 @@ sendrequest(WebKitWebPage     *web_page,
 		return FALSE;
 	// suppress request if not from same source, and hasiframe is true
 	return !checkdomain(dom, urireq);
+}
+
+void
+printheader(const char* name, const char* value, gpointer user_data)
+{
+	fprintf(stderr, "%s: %s\n", name, value);
+}
+
+void
+printheaders(WebKitURIRequest  *request)
+{
+	SoupMessageHeaders *headers = webkit_uri_request_get_http_headers(request);
+	soup_message_headers_foreach(headers, printheader, NULL);
 }
 
 void
