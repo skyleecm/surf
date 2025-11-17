@@ -179,6 +179,7 @@ static void newwindow(Client *c, const Arg *a, int noembed);
 static void spawn(Client *c, const Arg *a);
 static void spawnread(Client *c, const Arg *a);
 static void msgext(Client *c, char type, const Arg *a);
+static void cmdext(Client *c, const Arg *a);
 static void destroyclient(Client *c);
 static void cleanup(void);
 
@@ -1918,6 +1919,12 @@ msgext(Client *c, char type, const Arg *a)
 	if (send(spair[0], msg, ret, 0) != ret)
 		fprintf(stderr, "surf: error sending: %hhu/%c/%d (%d)\n",
 		        (unsigned char)c->pageid, type, a->i, ret);
+}
+
+void 
+cmdext(Client *c, const Arg *a)
+{
+	msgext(c, (char) a->i, a);
 }
 
 void

@@ -19,6 +19,7 @@
 static WebKitWebExtension *webext;
 static int sock;
 
+static gboolean toprintheader = FALSE;
 static void printheaders(WebKitURIRequest  *request);
 
 /*
@@ -37,8 +38,15 @@ evalmsg(char *msg, size_t sz)
 	if (!(page = webkit_web_extension_get_page(webext, msg[0])))
 		return sz;
 
-	if (sz < 2)
+	if (sz < 3)
 		return 0;
+
+	if (msg[1] == '[') {
+		toprintheader = ! toprintheader;
+		fprintf(stderr, "evalmsg: printheader %d\n", toprintheader);
+		sz = 3;
+		return sz;
+	}
 
 	jsc = webkit_frame_get_js_context(webkit_web_page_get_main_frame(page));
 	jsv = NULL;
@@ -217,7 +225,9 @@ sendrequest(WebKitWebPage     *web_page,
 			(strcmp(uri, webkit_uri_response_get_uri(redirected_response)) == 0))
 			return FALSE;
 	}
-	printheaders(request);
+	if (toprintheader)
+		printheaders(request);
+
 	char dom[256];
 	gchar *u = strchr(uri, ':');
 	sscanf(u, "://%[^/]", dom);
