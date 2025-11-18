@@ -190,6 +190,7 @@ checkdomain(const char *domain,  const gchar *urireq)
 
 // true if page has iframe src not from the same main domain
 //  skip the first iframe, otherwise lot of sites may not work, eg google login
+//  allow hcaptcha.com
 gboolean
 hasiframe(WebKitWebPage *wp, const char *domain)
 {
@@ -203,7 +204,7 @@ hasiframe(WebKitWebPage *wp, const char *domain)
 	{
 		WebKitDOMNode *elem = webkit_dom_node_list_item(list, i);
 		const gchar *src = webkit_dom_html_iframe_element_get_src(WEBKIT_DOM_HTML_IFRAME_ELEMENT(elem));
-		if ((src != NULL) && !checkdomain(domain, src))
+		if ((src != NULL) && !checkdomain(domain, src) && !checkdomain("hcaptcha.com", src))
 			return TRUE;
 	}
 	return FALSE;
