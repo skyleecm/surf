@@ -324,7 +324,7 @@ die(const char *errstr, ...)
 void
 usage(void)
 {
-	die("usage: surf [-bBdDfFgGiIkKmMnNsStTvwxX]\n"
+	die("usage: surf [-bBdDfFgGHiIkKmMnNsStTvwxX]\n"
 	    "[-a cookiepolicies ] [-c cookiefile] [-C stylefile] [-e xid]\n"
 	    "[-r scriptfile] [-u useragent] [-z zoomlevel] [uri]\n");
 }
@@ -2100,6 +2100,8 @@ main(int argc, char *argv[])
 	case 'G':
 		defconfig[Geolocation].val.i = 1;
 		defconfig[Geolocation].prio = 2;
+		break;
+	case 'H': // for webext
 		break;
 	case 'i':
 		defconfig[LoadImages].val.i = 0;

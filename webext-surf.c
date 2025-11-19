@@ -5,6 +5,7 @@
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include <gio/gio.h>
 #include <gio/gunixfdlist.h>
@@ -251,6 +252,38 @@ printheaders(WebKitURIRequest  *request)
 	soup_message_headers_foreach(headers, printheader, NULL);
 }
 
+// use surf -H to set toprintheader to true
+void
+check_caller()
+{
+	char path[256];
+	FILE *f;
+	pid_t pid = getppid();
+	sprintf(path, "/proc/%d/cmdline", pid);
+	if (!(f = fopen(path, "r"))) {
+		fprintf(stderr, "Could not open file: %s\n", path);
+		return;
+	}
+
+	char buf[BUFSIZ];
+	fgets(buf, sizeof(buf), f);
+	fclose(f);
+
+	char *a = buf;
+	while (a[0] != 0) {
+		if (a[0] != '-') {
+			a += strlen(a) + 1;
+			continue;
+		}
+		a += 1;
+		if (strchr(a, 'H') != NULL) {
+			toprintheader = TRUE;
+			break;
+		}
+		a += strlen(a) + 1;
+	}
+}
+
 void
 pagecreated(WebKitWebExtension *e, WebKitWebPage *p, gpointer unused)
 {
@@ -268,4 +301,5 @@ webkit_web_extension_initialize(WebKitWebExtension *e)
 
 	g_signal_connect(G_OBJECT(e), "page-created",
 	                 G_CALLBACK(pagecreated), NULL);
+	check_caller();
 }
