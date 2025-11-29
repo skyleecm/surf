@@ -219,7 +219,8 @@ sendrequest(WebKitWebPage     *web_page,
 {
 	const gchar *uri = webkit_web_page_get_uri(web_page);
 	const gchar *urireq = webkit_uri_request_get_uri(request);
-	if ((strcmp(uri, urireq) == 0) || (strncmp(urireq, "data:", 5) == 0))
+	if ((strcmp(uri, urireq) == 0) || (strncmp(urireq, "data:", 5) == 0)
+		|| webkit_uri_request_get_http_method(request) == NULL)
 		return FALSE;
 	if (redirected_response != NULL)
 	{
